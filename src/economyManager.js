@@ -47,26 +47,58 @@ export class EconomyManager {
     this.engine.triggerCelebration();
 
     this.engine.ui.updateEra(this.engine.currentEraIndex);
-    this.engine.ui.populateTowerDeck(ERAS[this.engine.currentEraIndex].towers, this.engine);
+    if (this.engine.ui.renderTowerSelection) {
+      this.engine.ui.renderTowerSelection(ERAS[this.engine.currentEraIndex].towers);
+    }
+    if (this.engine.ui.populateTowerDeck) {
+      this.engine.ui.populateTowerDeck(ERAS[this.engine.currentEraIndex].towers, this.engine);
+    }
 
-    // บัฟอารยธรรมถ่ายทอดสู่ป้อมยุคเก่า (Legacy Era Synergy)
+    // อัปเดตและวิวัฒนาการป้อมเดิมในสนามรบให้ก้าวสู่ยุคใหม่ทันที
     let legacyCount = 0;
     for (const t of this.engine.towers) {
       if (t.eraIndex < this.engine.currentEraIndex) {
         legacyCount++;
-        if (t.data.damage) t.data.damage = Math.round(t.data.damage * 1.25);
-        if (t.data.range) t.data.range = Math.round(t.data.range * 1.10);
-        this.engine.createIncomeParticle(t.c, t.r, 'ERA BOOST!✨');
+        const counterpart = this.findCounterpartInCurrentEra(t);
+        if (counterpart) {
+          const preservedLevel = t.level;
+          const preservedKills = t.kills || 0;
+          const preservedDmg = t.totalDamage || 0;
+          const preservedEarned = t.totalEarned || 0;
+
+          t.eraIndex = this.engine.currentEraIndex;
+          t.data = JSON.parse(JSON.stringify(counterpart));
+
+          // รักษา Level เดิมและสเกลสเตตัสตามเลเวลของป้อมยุคใหม่
+          for (let l = 1; l < preservedLevel; l++) {
+            if (t.data.damage) t.data.damage = Math.round(t.data.damage * 1.4);
+            if (t.data.range) t.data.range = Math.round(t.data.range * 1.15);
+            if (t.data.income) {
+              if (t.data.income.gold) t.data.income.gold = Math.round(t.data.income.gold * 1.5);
+              if (t.data.income.science) t.data.income.science = Math.round(t.data.income.science * 1.5);
+            }
+          }
+
+          t.level = preservedLevel;
+          t.kills = preservedKills;
+          t.totalDamage = preservedDmg;
+          t.totalEarned = preservedEarned;
+        } else {
+          // หากไม่มีตัวแทน ให้บัฟสเตตัสแทน
+          if (t.data.damage) t.data.damage = Math.round(t.data.damage * 1.25);
+          if (t.data.range) t.data.range = Math.round(t.data.range * 1.10);
+        }
+        this.engine.createBuildParticles(t.c, t.r);
+        this.engine.createIncomeParticle(t.c, t.r, 'EVOLVED!✨');
       }
     }
 
     if (legacyCount > 0) {
-      this.engine.ui.notify(`🎉 พัฒนาก้าวสู่อารยธรรมใหม่: ${this.engine.currentEra.name}! (ป้อมเดิม ${legacyCount} ป้อมได้รับบัฟวิวัฒนาการ +25% ดาเมจ)`);
+      this.engine.ui.notify(`🎉 พัฒนาก้าวสู่อารยธรรมใหม่: ${this.engine.currentEra.name}! (ป้อมในสนาม ${legacyCount} ป้อมถูกวิวัฒนาการสู่ยุคใหม่เรียบร้อย)`);
     } else {
       this.engine.ui.notify(`🎉 พัฒนาก้าวสู่อารยธรรมใหม่: ${this.engine.currentEra.name}!`);
     }
     this.engine.ui.updateStats(this.engine);
-    if (this.engine.ui.renderTowerSelection) this.engine.ui.renderTowerSelection(this.engine.currentEra.towers);
 
     if (this.engine.currentEraIndex === ERAS.length - 1) {
       this.engine.ui.notify('🌟 บรรลุสู่ยุคเทคโนโลยีอวกาศขั้นสูงสุดแล้ว! ปกป้องอาณานิคมให้สำเร็จ!');
